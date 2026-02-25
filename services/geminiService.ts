@@ -3,7 +3,17 @@ import { GoogleGenAI, Chat, GenerateContentResponse, FunctionDeclaration, Type, 
 import { EBook, GeneratedImage, ChapterOutline } from '../types';
 import { GEMINI_TEXT_MODEL, GEMINI_IMAGE_MODEL } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Lazy-initialize to avoid crashing the app when the API key is absent
+let _ai: GoogleGenAI | null = null;
+const getAI = (): GoogleGenAI => {
+  if (!_ai) {
+    const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.API_KEY || '';
+    _ai = new GoogleGenAI({ apiKey: key });
+  }
+  return _ai;
+};
+
 
 // Helper to clean JSON strings from Markdown code blocks
 const cleanJsonString = (text: string): string => {
@@ -91,7 +101,7 @@ export const analyzePdfContent = async (pdfBase64: string): Promise<{ title?: st
 
     const prompt = `Analyze this PDF. Extract Title, Author, Genre, and a Description (100 words). Return JSON.`;
 
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response: GenerateContentResponse = await getAI().models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: {
         parts: [
@@ -114,7 +124,7 @@ export const analyzePdfContent = async (pdfBase64: string): Promise<{ title?: st
 
 export const createStudioSession = (initialContext: string): Chat | null => {
   try {
-    return ai.chats.create({
+    return getAI().chats.create({
       model: GEMINI_TEXT_MODEL,
       config: {
         systemInstruction: `IDENTITY: You are NanoPi — the photonic intelligence AI built by OpenDev Labs, powering Co-Writter as Co-Author.
@@ -159,7 +169,7 @@ export const suggestBookPrice = async (bookDetails: Pick<EBook, 'genre' | 'title
     const prompt = `Suggest a competitive market price in INR (Indian Rupees) for an eBook: "${bookDetails.title}" (${bookDetails.genre}). 
     CRITICAL: The price MUST be a "sacred" or numerologically significant number (e.g., 111, 222, 333, 444, 555, 777, 888, 999, 1111).
     Return ONLY the number.`;
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt
     });
@@ -173,7 +183,7 @@ export const generateBookCover = async (prompt: string, style: string = 'Cinemat
   try {
     const refinedPrompt = `Professional Book Visual. Context: ${title} by ${author}. Request: ${prompt}. Mode: ${style}. Create a high-quality, clear, and relevant image/diagram. For diagrams, ensure clear labels and structure.`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_IMAGE_MODEL,
       contents: { parts: [{ text: refinedPrompt }] },
       config: { imageConfig: { aspectRatio: '3:4' } },
@@ -198,7 +208,7 @@ export const generateTitleSuggestions = async (topic: string, genre: string, ton
     Tone: ${tone}
     Return ONLY a JSON array of strings.`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
       config: {
@@ -226,7 +236,7 @@ export const generateBookOutline = async (title: string, genre: string, tone: st
     Tone: ${tone}
     Return ONLY a JSON array of objects with 'title' and 'summary' properties.`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
       config: {
@@ -261,7 +271,7 @@ export const generateFullChapterContent = async (chapterTitle: string, bookTitle
     Tone: ${tone}
     Instructions: Use professional markdown formatting. Include headers, lists, and deep insights. Aim for ~1000 words.`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt
     });
@@ -279,7 +289,7 @@ export const initializeGeminiChat = async (): Promise<Chat | null> => {
 
 export const transcribeAudio = async (audioBase64: string, mimeType: string): Promise<string | null> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: {
         parts: [
