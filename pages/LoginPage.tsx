@@ -58,9 +58,60 @@ const LoginPage: React.FC = () => {
 
     const handleGoogleSignIn = () => {
         setIsLoading(true);
-        // Redirect to main site's Google sign-in, then return here
-        const returnUrl = encodeURIComponent(window.location.href);
-        window.location.href = `https://opendev-labs.github.io/auth?returnUrl=${returnUrl}`;
+
+        // Open the main site's auth page in a popup
+        const popup = window.open(
+            'https://opendev-labs.github.io/auth',
+            'opendev_auth',
+            'width=480,height=600,top=100,left=100,resizable=yes,scrollbars=yes'
+        );
+
+        if (!popup) {
+            alert('Popup blocked. Please allow popups for this site and try again.');
+            setIsLoading(false);
+            return;
+        }
+
+        // Poll localStorage for the Firebase auth key (written by main site after sign-in)
+        const POLL_INTERVAL = 600;
+        const MAX_WAIT = 120_000; // 2 min
+        let elapsed = 0;
+
+        const poll = setInterval(() => {
+            elapsed += POLL_INTERVAL;
+
+            // Check every known Firebase auth key prefix
+            const fbKey = Object.keys(localStorage).find(k => k.startsWith('firebase:authUser:'));
+            if (fbKey) {
+                try {
+                    const fbUser = JSON.parse(localStorage.getItem(fbKey) || '{}');
+                    if (fbUser?.email) {
+                        clearInterval(poll);
+                        popup.close();
+
+                        const bridgedUser = {
+                            id: `firebase_${fbUser.email.replace(/[^a-z0-9]/gi, '_')}`,
+                            name: fbUser.displayName || fbUser.email,
+                            email: fbUser.email,
+                            purchaseHistory: [] as any[],
+                            wishlist: [] as any[],
+                            isVerified: true,
+                            profileImageUrl: fbUser.photoURL || '',
+                        };
+                        setCurrentUser(bridgedUser, UserType.USER);
+                        setIsLoading(false);
+                        navigate('/dashboard');
+                        return;
+                    }
+                } catch { /* continue polling */ }
+            }
+
+            // Timeout or popup closed by user
+            if (elapsed >= MAX_WAIT || popup.closed) {
+                clearInterval(poll);
+                setIsLoading(false);
+            }
+        }, POLL_INTERVAL);
     };
 
     const onEmailSubmit = async (e: React.FormEvent) => {
