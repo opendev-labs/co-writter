@@ -1,12 +1,15 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
-import { 
-    IconChevronDown, IconSend, IconPlus, IconMic
-} from '../../constants';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { IconChevronDown, IconSend, IconPlus } from '../constants';
 import * as ReactRouterDOM from 'react-router-dom';
-import { GenerateContentResponse } from '@google/genai';
 import MorphicEye from './MorphicEye';
+import {
+    createNanoPiSession,
+    sendNanoPiMessage,
+    NANOPI_SYSTEM_PROMPT,
+    NanoPiChatSession,
+    checkNanoPiStatus,
+} from '../services/nanoPiService';
 
 const { useLocation } = ReactRouterDOM as any;
 
@@ -17,175 +20,233 @@ interface ChatMessage {
     isStreaming?: boolean;
 }
 
-const AIChatbot: React.FC = () => {
-  const { geminiChat, initializeChat, isChatbotOpen, toggleChatbot } = useAppContext();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [userInput, setUserInput] = useState('');
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const location = useLocation();
+// ---- Floating toggle button ----
+export const NanoPiChatButton: React.FC = () => {
+    const [open, setOpen] = useState(false);
+    const [online, setOnline] = useState<boolean | null>(null);
+    const location = useLocation();
 
-  useEffect(() => {
-    if (isChatbotOpen && !geminiChat) {
-      initializeChat();
-    }
-  }, [isChatbotOpen, geminiChat, initializeChat]);
+    useEffect(() => {
+        checkNanoPiStatus().then(setOnline);
+    }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isChatbotOpen]);
+    // Don't show on studio page
+    if (location.pathname === '/ebook-studio') return null;
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
-    }
-  }, [userInput]);
+    return (
+        <>
+            {/* FAB button */}
+            <button
+                onClick={() => setOpen(v => !v)}
+                title="Chat with NanoPi"
+                className="fixed bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+            >
+                {open ? (
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                    </svg>
+                ) : (
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.7" />
+                        <path d="M2 12h3m14 0h3M12 2v3m0 14v3" strokeLinecap="round" />
+                        <path d="M4.93 4.93l2.12 2.12m9.9 9.9 2.12 2.12M19.07 4.93l-2.12 2.12m-9.9 9.9-2.12 2.12" strokeLinecap="round" />
+                    </svg>
+                )}
+                {/* Online dot */}
+                {online !== null && (
+                    <span className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border-2 border-[#09090b] ${online ? 'bg-green-400' : 'bg-red-500'}`} />
+                )}
+            </button>
 
-  // Hide global chatbot on Studio page to avoid UI overlap with Studio Agent
-  if (location.pathname === '/ebook-studio') {
-      return null;
-  }
+            {open && <NanoPiChatPanel onClose={() => setOpen(false)} />}
+        </>
+    );
+};
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!userInput.trim() || !geminiChat || isAiProcessing) return;
-    
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: userInput };
-    setMessages(prev => [...prev, userMsg]);
-    const currentInput = userInput;
-    setUserInput('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'; // Reset height
-    setIsAiProcessing(true);
+// ---- Chat panel ----
+const NanoPiChatPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [userInput, setUserInput] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [session, setSession] = useState<NanoPiChatSession>(() =>
+        createNanoPiSession(NANOPI_SYSTEM_PROMPT)
+    );
+    const [online, setOnline] = useState<boolean | null>(null);
 
-    const aiMsgId = (Date.now() + 1).toString();
-    setMessages(prev => [...prev, { id: aiMsgId, role: 'ai', text: '', isStreaming: true }]);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    try {
-        const responseStream = await geminiChat.sendMessageStream({ message: currentInput });
-        
-        let fullText = '';
-        for await (const chunk of responseStream) {
-             const chunkText = (chunk as GenerateContentResponse).text;
-             if (chunkText) {
-                 fullText += chunkText;
-                 setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: fullText } : m));
-             }
+    useEffect(() => {
+        checkNanoPiStatus().then(setOnline);
+    }, []);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
         }
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, isStreaming: false } : m));
+    }, [userInput]);
 
-    } catch (error) {
-        console.error("Chat error", error);
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: "Connection error. Please try again.", isStreaming: false } : m));
-    } finally {
-        setIsAiProcessing(false);
-    }
-  };
+    const handleSend = useCallback(async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (!userInput.trim() || isProcessing) return;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          handleSendMessage();
-      }
-  };
+        const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: userInput.trim() };
+        const aiMsgId = (Date.now() + 1).toString();
 
-  if (!isChatbotOpen) return null;
+        setMessages(prev => [...prev, userMsg, { id: aiMsgId, role: 'ai', text: '', isStreaming: true }]);
+        const currentInput = userInput.trim();
+        setUserInput('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        setIsProcessing(true);
 
-  return (
-    <div className="fixed bottom-0 right-4 sm:right-8 z-[60] flex flex-col items-end">
-        {/* === GLOBAL OVERLAY WINDOW === */}
-        <div className="w-[90vw] md:w-[400px] h-[500px] md:h-[600px] max-h-[80vh] bg-[#09090b]/95 backdrop-blur-2xl rounded-t-3xl border-t border-x border-white/10 shadow-2xl flex flex-col overflow-hidden animate-slide-up ring-1 ring-white/10">
-             <header className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-white/5">
+        try {
+            const { updatedSession } = await sendNanoPiMessage(session, currentInput, (fullText) => {
+                setMessages(prev =>
+                    prev.map(m => m.id === aiMsgId ? { ...m, text: fullText } : m)
+                );
+            });
+            setSession(updatedSession);
+            setMessages(prev =>
+                prev.map(m => m.id === aiMsgId ? { ...m, isStreaming: false } : m)
+            );
+        } catch (err) {
+            setMessages(prev =>
+                prev.map(m => m.id === aiMsgId
+                    ? { ...m, text: '⚠️ NanoPi is waking up or offline. Try again in a moment.', isStreaming: false }
+                    : m
+                )
+            );
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [userInput, isProcessing, session]);
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    };
+
+    return (
+        <div className="fixed bottom-24 right-4 sm:right-6 z-[60] w-[92vw] md:w-[400px] max-h-[75vh] bg-[#09090b]/97 backdrop-blur-2xl rounded-3xl border border-violet-500/20 shadow-[0_0_60px_rgba(139,92,246,0.2)] flex flex-col overflow-hidden animate-slide-up ring-1 ring-white/5">
+
+            {/* Header */}
+            <header className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-gradient-to-r from-violet-900/20 to-transparent">
                 <div className="flex items-center gap-3">
-                    <MorphicEye className="w-8 h-8 rounded-lg border border-white/10" />
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.4)]">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.7" />
+                            <path d="M2 12h3m14 0h3M12 2v3m0 14v3" strokeLinecap="round" />
+                        </svg>
+                    </div>
                     <div>
-                        <h2 className="text-sm font-bold text-white tracking-wide">QUICK ASSIST</h2>
+                        <h2 className="text-sm font-bold text-white tracking-wide">NanoPi</h2>
+                        <p className="text-[10px] text-violet-400 font-mono">
+                            {online === null ? 'Checking...' : online ? '● Online' : '○ Waking up...'}
+                        </p>
                     </div>
                 </div>
-                <button 
-                    onClick={toggleChatbot}
+                <button
+                    onClick={onClose}
                     className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
                 >
-                    <IconChevronDown className="w-5 h-5"/>
+                    <IconChevronDown className="w-5 h-5" />
                 </button>
             </header>
-            
-             <div className="flex-grow overflow-y-auto custom-scrollbar p-0 bg-[#09090b]">
+
+            {/* Messages */}
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-0 bg-[#09090b]">
                 {messages.length === 0 && (
-                    <div className="text-center text-neutral-500 text-sm mt-10 px-6">
-                        <p>How can I help you navigate or create today?</p>
+                    <div className="text-center px-6 pt-10 pb-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600/30 to-indigo-600/20 border border-violet-500/20 flex items-center justify-center mx-auto mb-4">
+                            <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.6" />
+                                <path d="M2 12h3m14 0h3M12 2v3m0 14v3" strokeLinecap="round" />
+                                <path d="M4.93 4.93l2.12 2.12m9.9 9.9 2.12 2.12M19.07 4.93l-2.12 2.12m-9.9 9.9-2.12 2.12" strokeLinecap="round" />
+                            </svg>
+                        </div>
+                        <p className="text-neutral-400 text-sm font-medium mb-1">NanoPi is ready</p>
+                        <p className="text-neutral-600 text-xs">Ask me to write, plan, or improve your book.</p>
+                        <div className="flex flex-wrap justify-center gap-2 mt-5">
+                            {['Help me start a book', 'Write Chapter 1', 'Create an outline', 'Improve my prose'].map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setUserInput(s)}
+                                    className="px-3 py-1.5 rounded-full text-xs border border-violet-500/20 text-violet-300 hover:bg-violet-500/10 transition-colors"
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
+
                 {messages.map(msg => (
                     <div key={msg.id} className="animate-fade-in border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
-                         <div className="px-5 py-6 flex gap-4 items-start">
+                        <div className="px-5 py-5 flex gap-3 items-start">
                             {msg.role === 'ai' && (
-                                <MorphicEye className="w-8 h-8 rounded-lg flex-shrink-0 mt-1" isActive={false} />
+                                <div className="flex-shrink-0 w-7 h-7 mt-0.5 rounded-lg bg-gradient-to-br from-violet-600/40 to-indigo-600/30 border border-violet-500/20 flex items-center justify-center">
+                                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.6" />
+                                        <path d="M2 12h3m14 0h3M12 2v3m0 14v3" strokeLinecap="round" />
+                                    </svg>
+                                </div>
                             )}
-                            <div className={`flex-1 space-y-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                            <div className={`flex-1 space-y-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                                 {msg.role === 'ai' && (
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-white uppercase tracking-wide">Co-Author</span>
-                                    </div>
+                                    <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">NanoPi</span>
                                 )}
                                 <div className={`text-sm leading-7 font-sans whitespace-pre-wrap ${msg.role === 'user' ? 'text-neutral-200 font-medium' : 'text-neutral-300'}`}>
                                     {msg.text}
-                                    {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-google-blue animate-pulse align-middle"></span>}
+                                    {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-violet-400 animate-pulse align-middle rounded-sm" />}
                                 </div>
                             </div>
-                         </div>
+                        </div>
                     </div>
                 ))}
                 <div ref={messagesEndRef} />
-             </div>
+            </div>
 
-             {/* Google Style Input Area */}
-             <div className="p-4 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent">
-                <div className="w-full bg-[#1e1e1e] border border-white/10 rounded-[28px] p-2 pl-4 flex items-end gap-2 shadow-lg transition-all focus-within:bg-[#252525] focus-within:border-white/20">
-                    
-                    {/* Attachment Icon (Visual Only) */}
-                    <button className="w-8 h-8 mb-1 rounded-full bg-white/5 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0">
-                        <IconPlus className="w-4 h-4" />
-                    </button>
-
+            {/* Input */}
+            <div className="p-4 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent">
+                <div className="w-full bg-[#1e1e1e] border border-white/10 rounded-[28px] p-2 pl-4 flex items-end gap-2 shadow-lg transition-all focus-within:border-violet-500/30">
                     <div className="flex-grow py-2">
-                        <textarea 
+                        <textarea
                             ref={textareaRef}
                             className="w-full bg-transparent text-white text-sm placeholder-neutral-500 resize-none focus:outline-none max-h-32 custom-scrollbar"
-                            placeholder="Ask anything..."
+                            placeholder="Ask NanoPi anything about your book..."
                             rows={1}
                             value={userInput}
                             onKeyDown={handleKeyDown}
                             onChange={e => setUserInput(e.target.value)}
-                            disabled={isAiProcessing}
+                            disabled={isProcessing}
                             style={{ minHeight: '24px' }}
                         />
                     </div>
-
                     {userInput.trim() ? (
-                        <button 
-                            onClick={(e) => handleSendMessage(e)}
-                            disabled={isAiProcessing} 
-                            className="w-10 h-10 mb-0.5 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex-shrink-0"
+                        <button
+                            onClick={(e) => handleSend(e)}
+                            disabled={isProcessing}
+                            className="w-9 h-9 mb-0.5 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex-shrink-0 shadow-[0_0_15px_rgba(139,92,246,0.4)]"
                         >
                             <IconSend className="w-4 h-4" />
                         </button>
                     ) : (
-                        <div className="w-10 h-10 mb-0.5 rounded-full flex items-center justify-center text-neutral-500 flex-shrink-0">
-                            <IconMic className="w-5 h-5" />
-                        </div>
+                        <div className="w-9 h-9 mb-0.5 flex-shrink-0" />
                     )}
                 </div>
-                <div className="text-center mt-2">
-                     <p className="text-[9px] text-neutral-600">AI can make mistakes. Check important info.</p>
-                </div>
-             </div>
+                <p className="text-center text-[9px] text-neutral-600 mt-2">
+                    Powered by NanoPi · opendev-labs-nanopi.hf.space
+                </p>
+            </div>
         </div>
-    </div>
-  );
+    );
 };
 
-export default AIChatbot;
+export default NanoPiChatButton;

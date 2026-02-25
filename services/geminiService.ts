@@ -13,21 +13,21 @@ const cleanJsonString = (text: string): string => {
   // 1. Try to extract from markdown code blocks first
   const jsonBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (jsonBlockMatch) {
-      cleaned = jsonBlockMatch[1];
+    cleaned = jsonBlockMatch[1];
   }
 
   // 2. If it still looks like it has extra text, try to find the outer braces or brackets
   const firstBrace = cleaned.search(/[{[]/);
   let lastIndex = -1;
   for (let i = cleaned.length - 1; i >= 0; i--) {
-      if (cleaned[i] === '}' || cleaned[i] === ']') {
-          lastIndex = i;
-          break;
-      }
+    if (cleaned[i] === '}' || cleaned[i] === ']') {
+      lastIndex = i;
+      break;
+    }
   }
 
   if (firstBrace !== -1 && lastIndex !== -1 && lastIndex > firstBrace) {
-      cleaned = cleaned.substring(firstBrace, lastIndex + 1);
+    cleaned = cleaned.substring(firstBrace, lastIndex + 1);
   }
 
   return cleaned;
@@ -36,88 +36,88 @@ const cleanJsonString = (text: string): string => {
 // --- AGENT TOOLS ---
 
 const writeContentTool: FunctionDeclaration = {
-    name: "write_content",
-    description: "Writes content directly into the book editor. Use this to WRITE new prose, FIX existing text, or APPEND text. The content argument will completely replace the current editor content, so be sure to include the full text if you are just making a small edit. DO NOT use this to insert images directly as base64.",
-    parameters: {
-        type: Type.OBJECT,
-        properties: {
-            content: { type: Type.STRING, description: "The FULL markdown content to put into the editor." },
-            summary: { type: Type.STRING, description: "A very brief 1-word status (e.g. 'Writing', 'Fixing', 'Analyzing')." }
-        },
-        required: ["content"]
-    }
+  name: "write_content",
+  description: "Writes content directly into the book editor. Use this to WRITE new prose, FIX existing text, or APPEND text. The content argument will completely replace the current editor content, so be sure to include the full text if you are just making a small edit. DO NOT use this to insert images directly as base64.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      content: { type: Type.STRING, description: "The FULL markdown content to put into the editor." },
+      summary: { type: Type.STRING, description: "A very brief 1-word status (e.g. 'Writing', 'Fixing', 'Analyzing')." }
+    },
+    required: ["content"]
+  }
 };
 
 const proposeBlueprintTool: FunctionDeclaration = {
-    name: "propose_blueprint",
-    description: "Propose a book title and chapter outline to the user for approval. Use this when the user asks to start a new book, create a plan, or brainstorm a structure.",
-    parameters: {
-        type: Type.OBJECT,
-        properties: {
-            title: { type: Type.STRING, description: "The proposed title of the book." },
-            outline: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        title: { type: Type.STRING, description: "Chapter title" },
-                        summary: { type: Type.STRING, description: "Brief summary of chapter" }
-                    }
-                },
-                description: "List of chapters with summaries."
-            }
+  name: "propose_blueprint",
+  description: "Propose a book title and chapter outline to the user for approval. Use this when the user asks to start a new book, create a plan, or brainstorm a structure.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      title: { type: Type.STRING, description: "The proposed title of the book." },
+      outline: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "Chapter title" },
+            summary: { type: Type.STRING, description: "Brief summary of chapter" }
+          }
         },
-        required: ["title", "outline"]
-    }
+        description: "List of chapters with summaries."
+      }
+    },
+    required: ["title", "outline"]
+  }
 };
 
 const generateImageTool: FunctionDeclaration = {
-    name: "generate_image",
-    description: "Generates a high-quality visual asset. REQUIRED for any image request. The AI must create a detailed visual description prompt based on the surrounding text context if the user does not provide one.",
-    parameters: {
-        type: Type.OBJECT,
-        properties: {
-            prompt: { type: Type.STRING, description: "The detailed visual description of the image or diagram to generate." }
-        },
-        required: ["prompt"]
-    }
+  name: "generate_image",
+  description: "Generates a high-quality visual asset. REQUIRED for any image request. The AI must create a detailed visual description prompt based on the surrounding text context if the user does not provide one.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      prompt: { type: Type.STRING, description: "The detailed visual description of the image or diagram to generate." }
+    },
+    required: ["prompt"]
+  }
 };
 
 // --- CORE FUNCTIONS ---
 
-export const analyzePdfContent = async (pdfBase64: string): Promise<{title?: string, author?: string, description?: string, genre?: string} | null> => {
-    try {
-        const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
-        
-        const prompt = `Analyze this PDF. Extract Title, Author, Genre, and a Description (100 words). Return JSON.`;
+export const analyzePdfContent = async (pdfBase64: string): Promise<{ title?: string, author?: string, description?: string, genre?: string } | null> => {
+  try {
+    const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
 
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: GEMINI_TEXT_MODEL,
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: "application/pdf", data: base64Data } },
-                    { text: prompt }
-                ]
-            },
-            config: { 
-              responseMimeType: 'application/json',
-              thinkingConfig: { thinkingBudget: 0 } 
-            }
-        });
+    const prompt = `Analyze this PDF. Extract Title, Author, Genre, and a Description (100 words). Return JSON.`;
 
-        return JSON.parse(cleanJsonString(response.text || "{}"));
-    } catch (e) {
-        console.error("PDF Analysis failed", e);
-        return null;
-    }
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: {
+        parts: [
+          { inlineData: { mimeType: "application/pdf", data: base64Data } },
+          { text: prompt }
+        ]
+      },
+      config: {
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 }
+      }
+    });
+
+    return JSON.parse(cleanJsonString(response.text || "{}"));
+  } catch (e) {
+    console.error("PDF Analysis failed", e);
+    return null;
+  }
 };
 
 export const createStudioSession = (initialContext: string): Chat | null => {
-    try {
-        return ai.chats.create({
-            model: GEMINI_TEXT_MODEL,
-            config: {
-                systemInstruction: `IDENTITY: You are Co-Author, the advanced neural engine for co-writter by OpenDev Labs.
+  try {
+    return ai.chats.create({
+      model: GEMINI_TEXT_MODEL,
+      config: {
+        systemInstruction: `IDENTITY: You are NanoPi — the photonic intelligence AI built by OpenDev Labs, powering Co-Writter as Co-Author.
                 
 MISSION: Write immersive, deeply intelligent, and market-ready books.
 Blend spirituality, science, and narrative clarity into a seamless flow.
@@ -145,13 +145,13 @@ RESPONSE STYLE:
 
 CONTEXT:
 ${initialContext}`,
-                tools: [{ functionDeclarations: [writeContentTool, proposeBlueprintTool, generateImageTool] }],
-            },
-        });
-    } catch (e) {
-        console.error("Failed to create studio session", e);
-        return null;
-    }
+        tools: [{ functionDeclarations: [writeContentTool, proposeBlueprintTool, generateImageTool] }],
+      },
+    });
+  } catch (e) {
+    console.error("Failed to create studio session", e);
+    return null;
+  }
 };
 
 export const suggestBookPrice = async (bookDetails: Pick<EBook, 'genre' | 'title' | 'description'>): Promise<string> => {
@@ -172,16 +172,16 @@ export const suggestBookPrice = async (bookDetails: Pick<EBook, 'genre' | 'title
 export const generateBookCover = async (prompt: string, style: string = 'Cinematic', title: string = '', author: string = ''): Promise<GeneratedImage | { error: string }> => {
   try {
     const refinedPrompt = `Professional Book Visual. Context: ${title} by ${author}. Request: ${prompt}. Mode: ${style}. Create a high-quality, clear, and relevant image/diagram. For diagrams, ensure clear labels and structure.`;
-    
+
     const response = await ai.models.generateContent({
       model: GEMINI_IMAGE_MODEL,
       contents: { parts: [{ text: refinedPrompt }] },
       config: { imageConfig: { aspectRatio: '3:4' } },
     });
-    
+
     const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
     if (part?.inlineData?.data) {
-         return { imageBytes: part.inlineData.data, prompt: prompt };
+      return { imageBytes: part.inlineData.data, prompt: prompt };
     }
     return { error: "Generation failed." };
   } catch (error) {
@@ -197,11 +197,11 @@ export const generateTitleSuggestions = async (topic: string, genre: string, ton
     Genre: ${genre}
     Tone: ${tone}
     Return ONLY a JSON array of strings.`;
-    
+
     const response = await ai.models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
-      config: { 
+      config: {
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.ARRAY,
@@ -209,7 +209,7 @@ export const generateTitleSuggestions = async (topic: string, genre: string, ton
         }
       }
     });
-    
+
     const text = response.text;
     return JSON.parse(cleanJsonString(text || "[]"));
   } catch (error) {
@@ -229,7 +229,7 @@ export const generateBookOutline = async (title: string, genre: string, tone: st
     const response = await ai.models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
-      config: { 
+      config: {
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.ARRAY,
@@ -274,7 +274,7 @@ export const generateFullChapterContent = async (chapterTitle: string, bookTitle
 };
 
 export const initializeGeminiChat = async (): Promise<Chat | null> => {
-    return createStudioSession("Global Chat Context");
+  return createStudioSession("Global Chat Context");
 };
 
 export const transcribeAudio = async (audioBase64: string, mimeType: string): Promise<string | null> => {
@@ -283,8 +283,8 @@ export const transcribeAudio = async (audioBase64: string, mimeType: string): Pr
       model: GEMINI_TEXT_MODEL,
       contents: {
         parts: [
-            { inlineData: { mimeType: mimeType, data: audioBase64 } },
-            { text: "Transcribe the spoken audio into text. Return only the transcription, no intro/outro." }
+          { inlineData: { mimeType: mimeType, data: audioBase64 } },
+          { text: "Transcribe the spoken audio into text. Return only the transcription, no intro/outro." }
         ]
       }
     });
