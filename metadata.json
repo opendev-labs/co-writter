@@ -1,0 +1,8 @@
+{
+  "name": "co-writter",
+  "description": "co-writter by OpenDev Labs: The professional platform for creating and selling books, powered by the Co-Author neural engine.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
