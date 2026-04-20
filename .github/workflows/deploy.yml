@@ -1,45 +1,62 @@
-name: Deploy to GitHub Pages and Firebase
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install and Build
-        env:
-          VITE_API_KEY: AIzaSyDigiZpeb7pvEN6gA_0p6Va0OK5yk88QjE
-          VITE_FIREBASE_API_KEY: AIzaSyDigiZpeb7pvEN6gA_0p6Va0OK5yk88QjE
-          VITE_FIREBASE_AUTH_DOMAIN: co-writter-studio.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: co-writter-studio
-          VITE_FIREBASE_STORAGE_BUCKET: co-writter-studio.appspot.com
-          VITE_FIREBASE_MESSAGING_SENDER_ID: "55195088674"
-          VITE_FIREBASE_APP_ID: "1:221587475436:web:c0fb1c2b4adf4b6f950ec9"
-          VITE_GA_MEASUREMENT_ID: G-XXXXXXXXXX
-        run: |
-          npm install
-          npm run build
-
-      - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          folder: dist
-          branch: gh-pages
+          node-version: 20
+          cache: 'npm'
 
-#      - name: Deploy to Firebase Hosting
-#        uses: FirebaseExtended/action-hosting-deploy@v0
-#        with:
-#          repoToken: ${{ secrets.GITHUB_TOKEN }}
-#          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CO_WRITTER_51007753 }}
-#          channelId: live
-#          projectId: co-writter-51007753
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        env:
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -14,7 +14,7 @@ declare global {
 }
 
 const PricingPage: React.FC = () => {
-    const { currentUser, userType, upgradeToSeller } = useAppContext();
+    const { currentUser, userType, upgradeToSeller, setCurrentUser } = useAppContext();
     const navigate = useNavigate();
     const [isProcessing, setIsProcessing] = useState(false);
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -89,7 +89,7 @@ const PricingPage: React.FC = () => {
     return (
         <div className="min-h-screen w-full relative bg-black selection:bg-white/20 font-sans">
             
-            {/* === Background Effects (Matching Login Page) === */}
+            {/* === Background Effects === */}
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-[120px]"></div>
                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
@@ -129,9 +129,6 @@ const PricingPage: React.FC = () => {
                     
                     {/* 1. Reader Plan */}
                     <div className="bg-black border border-white/10 p-8 md:p-10 rounded-[32px] relative group shadow-2xl overflow-hidden">
-                        {/* Hover Glow */}
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10">
                                 <IconBook className="w-5 h-5" />
@@ -141,7 +138,6 @@ const PricingPage: React.FC = () => {
                         
                         <div className="mb-6">
                             <span className="text-4xl font-black text-white">Free</span>
-                            <span className="text-neutral-500 ml-2">/ forever</span>
                         </div>
 
                         <p className="text-neutral-400 text-sm mb-8 min-h-[40px]">
@@ -156,15 +152,9 @@ const PricingPage: React.FC = () => {
                         </button>
 
                         <div className="space-y-4">
-                            {[
-                                'Read Unlimited Books',
-                                'Saved Books List',
-                                'Works on All Devices',
-                                'Community Reviews',
-                                'Personal Library'
-                            ].map((feature, i) => (
+                            {['Read Unlimited Books', 'Saved Books List', 'Works on All Devices'].map((feature, i) => (
                                 <div key={i} className="flex items-center gap-3 text-sm text-neutral-300">
-                                    <IconCheck className="w-4 h-4 text-google-green flex-shrink-0" />
+                                    <IconCheck className="w-4 h-4 text-green-500 flex-shrink-0" />
                                     <span>{feature}</span>
                                 </div>
                             ))}
@@ -173,16 +163,10 @@ const PricingPage: React.FC = () => {
 
                     {/* 2. Creator Plan */}
                     <div className="bg-black border border-white/10 p-8 md:p-10 rounded-[32px] relative shadow-2xl overflow-hidden">
-                        {/* Top Gradient Highlight */}
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-google-blue to-transparent opacity-50"></div>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50"></div>
                         
-                        <div className="absolute top-6 right-6 px-3 py-1 bg-white text-black text-[10px] font-bold uppercase tracking-widest rounded-full shadow-glow-white">
-                            Recommended
-                        </div>
-
                         <div className="flex items-center gap-3 mb-4 relative z-10">
                             <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg">
-                                {/* Updated robust Feather icon usage */}
                                 <IconFeather className="w-5 h-5" />
                             </div>
                             <h3 className="text-xl font-bold text-white">Writer</h3>
@@ -190,7 +174,6 @@ const PricingPage: React.FC = () => {
                         
                         <div className="mb-6 relative z-10">
                             <span className="text-4xl font-black text-white">₹{billingCycle === 'monthly' ? '444' : '4,444'}</span>
-                            <span className="text-neutral-500 ml-2">/ {billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
                         </div>
 
                         <p className="text-neutral-400 text-sm mb-8 min-h-[40px] relative z-10">
@@ -198,37 +181,49 @@ const PricingPage: React.FC = () => {
                         </p>
 
                         {userType === UserType.SELLER ? (
-                             <button 
-                                disabled
-                                className="w-full py-4 rounded-full bg-green-500/10 text-green-400 font-bold border border-green-500/50 mb-8 cursor-default flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
-                            >
+                             <button disabled className="w-full py-4 rounded-full bg-green-500/10 text-green-400 font-bold border border-green-500/50 mb-8 uppercase tracking-widest text-xs flex items-center justify-center gap-2">
                                 <IconCheck className="w-5 h-5" /> Current Plan
                             </button>
                         ) : (
-                            <button 
-                                onClick={handleSubscribe}
-                                disabled={isProcessing}
-                                className="w-full py-4 rounded-full bg-white text-black font-bold hover:bg-neutral-200 transition-colors shadow-glow-white mb-8 flex items-center justify-center gap-2 relative z-10 uppercase tracking-widest text-xs"
-                            >
-                                {isProcessing ? 'Processing...' : (
-                                    <>
-                                        <IconRocket className="w-4 h-4" /> Upgrade to Writer
-                                    </>
+                            <div className="flex flex-col gap-2 mb-8 relative z-10">
+                                <button 
+                                    onClick={handleSubscribe}
+                                    disabled={isProcessing}
+                                    className="w-full py-4 rounded-full bg-white text-black font-bold hover:bg-neutral-200 transition-colors shadow-glow-white flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
+                                >
+                                    {isProcessing ? 'Processing...' : <><IconRocket className="w-4 h-4" /> Upgrade to Writer</>}
+                                </button>
+                                
+                                {import.meta.env.DEV && (
+                                    <button 
+                                        onClick={() => {
+                                            // Ensure a user exists first
+                                            if (!currentUser) {
+                                                setCurrentUser({
+                                                    id: 'dev-user',
+                                                    name: 'Dev Author',
+                                                    email: 'dev@co-writter.io',
+                                                    isVerified: true,
+                                                    profileImageUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dev'
+                                                }, UserType.USER);
+                                            }
+                                            // Then upgrade
+                                            setTimeout(() => {
+                                                upgradeToSeller();
+                                                alert("DEV MODE: Upgraded to Writer successfully!");
+                                                navigate('/dashboard');
+                                            }, 100);
+                                        }}
+                                        className="w-full py-2 rounded-full border border-indigo-500/30 text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-500/10 transition-colors"
+                                    >
+                                        [DEV] Instant Upgrade
+                                    </button>
                                 )}
-                            </button>
+                            </div>
                         )}
 
                         <div className="space-y-4 relative z-10">
-                            {[
-                                'Everything in Reader',
-                                'Publish Unlimited Books',
-                                'Co-Author Assistant',
-                                'AI Cover Creator',
-                                'Your Own Profile Page',
-                                'See Sales Stats',
-                                'Keep 70% of Sales',
-                                'Priority Support'
-                            ].map((feature, i) => (
+                            {['Everything in Reader', 'Publish Unlimited Books', 'Co-Author AI', 'Keep 70% of Sales'].map((feature, i) => (
                                 <div key={i} className="flex items-center gap-3 text-sm text-white font-medium">
                                     <div className="p-0.5 bg-white rounded-full">
                                         <IconCheck className="w-3 h-3 text-black flex-shrink-0" />
@@ -236,25 +231,6 @@ const PricingPage: React.FC = () => {
                                     <span>{feature}</span>
                                 </div>
                             ))}
-                        </div>
-                    </div>
-
-                </div>
-
-                {/* FAQ / Trust */}
-                <div className="mt-20 text-center border-t border-white/10 pt-10">
-                    <div className="flex flex-col md:flex-row justify-center gap-8 md:gap-16 text-neutral-400 text-sm">
-                        <div className="flex items-center justify-center gap-3">
-                            <IconStar className="w-5 h-5 text-yellow-500" />
-                            <span>Trusted by 10,000+ Creators</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-3">
-                             <svg className="w-5 h-5 text-google-green" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                            <span>Secure Payments</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-3">
-                             <svg className="w-5 h-5 text-google-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                            <span>Cancel Anytime</span>
                         </div>
                     </div>
                 </div>
