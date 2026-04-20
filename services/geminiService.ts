@@ -3,7 +3,6 @@ import { GoogleGenAI, Chat, GenerateContentResponse, FunctionDeclaration, Type, 
 import { EBook, GeneratedImage, ChapterOutline } from '../types';
 import { GEMINI_TEXT_MODEL, GEMINI_IMAGE_MODEL } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Helper to clean JSON strings from Markdown code blocks
 const cleanJsonString = (text: string): string => {

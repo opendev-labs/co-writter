@@ -1,6 +1,6 @@
 
 import React from 'react';
-import * as ReactRouterDOM from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
@@ -22,9 +22,6 @@ import ShippingPolicyPage from './pages/ShippingPolicyPage';
 import RefundPolicyPage from './pages/RefundPolicyPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-
-// Reverting to HashRouter for stability in cloud/preview environments
-const { HashRouter, Routes, Route, useLocation } = ReactRouterDOM as any;
 
 const AnimatedRoutes = () => {
     const location = useLocation();
