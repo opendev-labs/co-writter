@@ -1,6 +1,6 @@
 {
     "hosting": {
-        "site": "co-writter-studio",
+        "site": "code-co-writter",
         "public": "dist",
         "ignore": [
             "firebase.json",

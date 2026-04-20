@@ -34,6 +34,7 @@ jobs:
       - name: Build
         env:
           VITE_API_KEY: AIzaSyCoe4zQ0HKezes6EsolNJxBQ21ndBGYc2A
+          VITE_GEMINI_API_KEY: AIzaSyCoe4zQ0HKezes6EsolNJxBQ21ndBGYc2A
           VITE_FIREBASE_API_KEY: AIzaSyCoe4zQ0HKezes6EsolNJxBQ21ndBGYc2A
           VITE_FIREBASE_AUTH_DOMAIN: code-co-writter.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: code-co-writter
