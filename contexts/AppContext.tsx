@@ -5,6 +5,7 @@ import { mockEBooks, mockUsers } from '../services/mockData';
 import { initializeGeminiChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
 import { auth, googleProvider, signInWithPopup, signOut as firebaseSignOut } from '../services/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
 const defaultAppContext: AppContextType = {
   currentUser: null,
@@ -24,6 +25,8 @@ const defaultAppContext: AppContextType = {
   addCreatedBook: () => {},
   updateEBook: () => {}, 
   handleGoogleLogin: () => {},
+  handlePhoneLogin: async () => ({ success: false }),
+  verifyOtp: async () => ({ success: false }),
   handleEmailLogin: async () => ({ success: false }),
   upgradeToSeller: () => {},
   verifyUser: () => {},
@@ -229,6 +232,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const handlePhoneLogin = async (phoneNumber: string, recaptchaContainerId: string) => {
+    try {
+        if (!auth) return { success: false };
+        
+        const appVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
+            'size': 'invisible'
+        });
+
+        const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        // Store confirmationResult in a ref or state if needed, but for simplicity we'll return it
+        return { success: true, confirmationResult };
+    } catch (error) {
+        console.error("Phone Login Error:", error);
+        return { success: false, error };
+    }
+  };
+
+  const verifyOtp = async (confirmationResult: any, otp: string) => {
+    try {
+        const result = await confirmationResult.confirm(otp);
+        const user = result.user;
+
+        const appUser: User = {
+            id: `phone_${user.uid}`,
+            name: user.phoneNumber || 'Phone User',
+            email: '',
+            purchaseHistory: [],
+            wishlist: [],
+            isVerified: true,
+            profileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`
+        };
+
+        setCurrentUser(appUser, UserType.USER);
+        mockUsers[appUser.id] = appUser;
+        return { success: true };
+    } catch (error) {
+        console.error("OTP Verification Error:", error);
+        return { success: false, error };
+    }
+  };
+  };
+
   // ADDED: Email Login for Admin/Owner and Paid Writers
   const handleEmailLogin = async (inputEmail: string, inputPass: string): Promise<{success: boolean, message?: string}> => {
       
@@ -319,7 +364,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   return (
-    <AppContext.Provider value={{ currentUser, userType, setCurrentUser, cart, addToCart, removeFromCart, clearCart, theme, geminiChat, initializeChat, isChatbotOpen, toggleChatbot, updateSellerCreatorSite, allBooks, addCreatedBook, updateEBook, handleGoogleLogin, handleEmailLogin, upgradeToSeller, verifyUser }}>
+    <AppContext.Provider value={{ currentUser, userType, setCurrentUser, cart, addToCart, removeFromCart, clearCart, theme, geminiChat, initializeChat, isChatbotOpen, toggleChatbot, updateSellerCreatorSite, allBooks, addCreatedBook, updateEBook, handleGoogleLogin, handlePhoneLogin, verifyOtp, handleEmailLogin, upgradeToSeller, verifyUser }}>
       {children}
     </AppContext.Provider>
   );

@@ -100,7 +100,9 @@ export interface AppContextType {
   allBooks: EBook[]; // Added to manage AI-created books dynamically
   addCreatedBook: (book: EBook) => void; // For AI eBook creation
   updateEBook: (book: EBook) => void; // Added for editing eBooks
-  handleGoogleLogin: (credentialResponse: any) => void; // Added for Google Login
+  handleGoogleLogin: () => Promise<boolean>; // Updated for Firebase SDK
+  handlePhoneLogin: (phoneNumber: string, recaptchaContainerId: string) => Promise<{success: boolean, confirmationResult?: any, error?: any}>;
+  verifyOtp: (confirmationResult: any, otp: string) => Promise<{success: boolean, error?: any}>;
   handleEmailLogin: (email: string, password: string) => Promise<{success: boolean, message?: string}>; // ADDED: Email Login
   upgradeToSeller: () => void; // Upgrade User to Seller
   verifyUser: () => void; // Added for Blue Tick Verification
